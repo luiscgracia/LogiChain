@@ -44,11 +44,6 @@ type DarkCtx = { dark: boolean; toggle: () => void }
 const DarkContext = createContext<DarkCtx>({ dark: false, toggle: () => {} })
 const useDark = () => useContext(DarkContext)
 
-// Token helper: devuelve el valor según dark/light
-function tok(dark: boolean, darkVal: string, lightVal: string) {
-  return dark ? darkVal : lightVal
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

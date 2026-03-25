@@ -92,7 +92,6 @@ contract LogisticsTracking {
     error CheckpointNotFound(uint256 id);
     error IncidentNotFound(uint256 id);
     error ActorDoesNotExist();
-    error PaginationOffsetOutOfBounds();
     error ActorNotAssignedToShipment(); // [C-2] Actor no está asignado a este envío
 
     // -------------------------------------------------------------------------
