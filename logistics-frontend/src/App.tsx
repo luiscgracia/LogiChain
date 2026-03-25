@@ -467,7 +467,25 @@ export default function App() {
         color: dark ? '#f1f5f9' : '#1e293b',
         fontFamily: 'Inter, system-ui, sans-serif',
         fontSize: '15px',
+        backgroundImage: 'url(/fondo.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+        backgroundBlendMode: 'overlay',
       }}>
+        {/* Capa de opacidad sobre la imagen de fondo */}
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundImage: 'url(/fondo.png)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundAttachment: 'fixed',
+          opacity: 0.12,
+          zIndex: 0,
+          pointerEvents: 'none',
+        }} />
+        <div style={{ position: 'relative', zIndex: 1 }}>
 
         {/* ── ENCABEZADO + PESTAÑAS ── */}
         <div style={{ position: 'sticky', top: 0, zIndex: 50 }}>
@@ -596,6 +614,7 @@ export default function App() {
             Todos los derechos reservados © 2026
           </p>
         </footer>
+        </div> {/* fin div position:relative zIndex:1 */}
       </div>
     </DarkContext.Provider>
   )
