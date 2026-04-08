@@ -151,10 +151,13 @@ const CONTRACT_ERRORS: Record<string, string> = {
   AlreadyRegisteredAndActive: 'Este actor ya está registrado y activo.',
   InvalidAddress:             'La dirección proporcionada no es válida.',
   InvalidRole:                'El rol seleccionado no es válido.',
-  ShipmentNotFound:           'El ID de envío no existe en el contrato.',
+  ShipmentNotFound:           'El envío no existe en el contrato.',
   MaxCheckpointsReached:      'Se alcanzó el límite máximo de checkpoints para este envío.',
   MaxIncidentsReached:        'Se alcanzó el límite máximo de incidencias para este envío.',
   ActorDoesNotExist:          'El actor no existe en el contrato.',
+  CheckpointNotFound:         'El checkpoint no existe en el contrato.',
+  IncidentNotFound:           'La incidencia no existe. Verifica el ID global de la incidencia.',
+  NotPendingAdmin:            'No hay una transferencia de administración pendiente.',
 }
 
 // Selectores keccak256 de los errores personalizados del contrato
@@ -169,6 +172,10 @@ const ERROR_SELECTORS: Record<string, string> = {
   '0xd40c3d21': 'ActorNotAssignedToShipment',
   '0xb9f79653': 'AlreadyDelivered',
   '0x8b167a50': 'AlreadyClosedShipment',
+  '0x22bc9caa': 'CheckpointNotFound',
+  '0xae30d3b0': 'IncidentNotFound',
+  '0x84e54a24': 'ShipmentNotFound',
+  '0x058d9a1b': 'NotPendingAdmin',
   '0xb86c1b1c': 'CannotCancelAfterTransit',
   '0x9e96bb69': 'CannotSetDeliveredDirectly',
   '0x7ca2767c': 'AlreadyRegisteredAndActive',
@@ -851,6 +858,7 @@ function RolesGovernance({ push, onActorRegistered }: { push: ReturnType<typeof 
         <div>
           <label style={labelStyle(dark)}>Ubicación</label>
           <LocationSelect
+            key={form.addr + form.name}
             value={form.loc}
             onChange={loc => setForm({ ...form, loc })}
             dark={dark}
@@ -951,7 +959,7 @@ function ActorsList({ push, isSyncing, onSync }: { push: ReturnType<typeof useTo
             <p style={{ fontSize: '12px' }}>Registra un actor en el formulario de arriba o sincroniza desde la blockchain.</p>
           </div>
         ) : (
-          <div style={{ marginTop: '8px', borderRadius: '8px', overflowX: 'auto', overflowY: 'auto', maxHeight: '420px', WebkitOverflowScrolling: 'touch', border: '0.5px solid #e2e8f0' }}>
+          <div style={{ marginTop: '8px', borderRadius: '8px', overflowX: 'auto', overflowY: 'auto', maxHeight: '600px', WebkitOverflowScrolling: 'touch', border: '0.5px solid #e2e8f0' }}>
             <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '28%' }} />
@@ -988,9 +996,20 @@ function ActorRow({ address, push, filterActive }: { address: Address; push: Ret
   })
 
   const { write, isPending } = useTx(push)
+  const publicClient = usePublicClient()
+  const { address: account } = useAccount()
 
-  const handleToggleActive = () => {
+  const handleToggleActive = async () => {
     const fn = actor.isActive ? 'deactivateActor' : 'reactivateActor'
+    try {
+      await publicClient?.simulateContract({
+        address: CONTRACT_ADDRESS, abi: ABI, functionName: fn,
+        args: [address], account: account as Address,
+      })
+    } catch (e: any) {
+      push(parseContractError(e), 'err')
+      return
+    }
     write(
       { address: CONTRACT_ADDRESS, abi: ABI, functionName: fn, args: [address] },
       { onSuccess: () => setTimeout(() => refetch(), 2000) }
@@ -1174,13 +1193,12 @@ function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['push'] }
   const [statusForm, setStatusForm] = useState({ id: '', status: -1 })
   const [confirmId, setConfirmId] = useState('')
   const [cancelId, setCancelId] = useState('')
+  const [cpErrors, setCpErrors] = useState<Record<string, string>>({})
   const [incForm, setIncForm] = useState({ id: '', type: -1, desc: '' })
   const [incErrors, setIncErrors] = useState<Record<string, string>>({})
-  const [resolveForm, setResolveForm] = useState({ id: '', incIdx: '' })
-  const [cpErrors, setCpErrors] = useState<Record<string, string>>({})
 
   const { write: writeOp, isPending: opPending, isSuccess: opSuccess } = useTx(push)
-  const lastOpRef = useRef<null | 'checkpoint' | 'status' | 'confirm' | 'cancel'>(null)
+  const lastOpRef = useRef<null | 'checkpoint' | 'status' | 'confirm' | 'cancel' | 'incident' | 'resolve'>(null)
   const publicClient = usePublicClient()
   const { address } = useAccount()
 
@@ -1191,7 +1209,6 @@ function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['push'] }
       if (lastOpRef.current === 'status') setStatusForm({ id: '', status: -1 })
       if (lastOpRef.current === 'cancel') setCancelId('')
       if (lastOpRef.current === 'incident') { setIncForm({ id: '', type: -1, desc: '' }); setIncErrors({}) }
-      if (lastOpRef.current === 'resolve') setResolveForm({ id: '', incIdx: '' })
       lastOpRef.current = null
     }
   }, [opSuccess])
@@ -1305,16 +1322,6 @@ function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['push'] }
     if (!ok) return
     lastOpRef.current = 'incident'
     writeOp({ address: CONTRACT_ADDRESS, abi: ABI, functionName: 'reportIncident', args })
-  }
-
-  const handleResolve = async () => {
-    if (!resolveForm.id || isNaN(Number(resolveForm.id))) return push('ID de envío requerido', 'err')
-    if (!resolveForm.incIdx || isNaN(Number(resolveForm.incIdx))) return push('Índice de incidencia requerido', 'err')
-    const args = [BigInt(resolveForm.id), BigInt(resolveForm.incIdx)]
-    const ok = await simulate('resolveIncident', args)
-    if (!ok) return
-    lastOpRef.current = 'resolve'
-    writeOp({ address: CONTRACT_ADDRESS, abi: ABI, functionName: 'resolveIncident', args })
   }
 
   const subSectionTitle = (label: string, color = '#059669') => (
@@ -1457,103 +1464,62 @@ function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['push'] }
 
       <hr style={{ border: 'none', borderTop: `1px solid ${dark ? '#334155' : '#e2e8f0'}`, margin: '16px 0' }} />
 
-      {/* INCIDENCIAS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', marginTop: '8px' }}>
-
-        {/* Reportar Incidencia */}
-        <div>
-          {subSectionTitle('⚠️ Reportar Incidencia', '#d97706')}
-          <p style={{ fontSize: '12px', color: dark ? '#64748b' : '#94a3b8', marginTop: '-8px', marginBottom: '12px' }}>(Cualquier actor asignado al envío)</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div>
-              <label style={labelStyle(dark)}>ID Envío</label>
-              <input
-                type="number" min="1" placeholder="######"
-                value={incForm.id}
-                onChange={e => setIncForm({ ...incForm, id: e.target.value })}
-                style={inputStyle(dark, !!incErrors.id)}
-              />
-              <FieldError msg={incErrors.id} />
-            </div>
-            <div>
-              <label style={labelStyle(dark)}>Tipo de incidencia</label>
-              <select
-                value={incForm.type}
-                onChange={e => setIncForm({ ...incForm, type: Number(e.target.value) })}
-                style={inputStyle(dark, !!incErrors.type)}
-              >
-                <option value={-1} disabled>— Seleccione un tipo —</option>
-                {INCIDENT_TYPES.map((t, i) => <option key={i} value={i}>{t}</option>)}
-              </select>
-              <FieldError msg={incErrors.type} />
-            </div>
-            <div>
-              <label style={labelStyle(dark)}>Descripción</label>
-              <textarea
-                placeholder="Describa la incidencia con el mayor detalle posible…"
-                value={incForm.desc}
-                rows={3}
-                onChange={e => setIncForm({ ...incForm, desc: e.target.value })}
-                style={{ ...inputStyle(dark, !!incErrors.desc), resize: 'vertical', minHeight: '72px' }}
-              />
-              <FieldError msg={incErrors.desc} />
-            </div>
+      {/* REPORTAR INCIDENCIA */}
+      <div className="mt-2">
+        {subSectionTitle('⚠️ Reportar Incidencia', '#d97706')}
+        <p style={{ fontSize: '12px', color: dark ? '#64748b' : '#94a3b8', marginTop: '-8px', marginBottom: '12px' }}>
+          (Cualquier actor asignado al envío puede reportar una incidencia)
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+          <div>
+            <label style={labelStyle(dark)}>ID Envío</label>
+            <input
+              type="number" min="1" placeholder="######"
+              value={incForm.id}
+              onChange={e => setIncForm({ ...incForm, id: e.target.value })}
+              style={inputStyle(dark, !!incErrors.id)}
+            />
+            <FieldError msg={incErrors.id} />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '14px' }}>
-            <button
-              onClick={handleIncident}
-              disabled={opPending}
-              style={{ ...btnPrimary(opPending), backgroundColor: opPending ? '#fcd34d' : '#d97706' }}
+          <div>
+            <label style={labelStyle(dark)}>Tipo de incidencia</label>
+            <select
+              value={incForm.type}
+              onChange={e => setIncForm({ ...incForm, type: Number(e.target.value) })}
+              style={inputStyle(dark, !!incErrors.type)}
             >
-              {opPending ? '⏳ Registrando…' : '⚠️ Reportar Incidencia'}
-            </button>
+              <option value={-1} disabled>— Seleccione un tipo —</option>
+              {INCIDENT_TYPES.map((t, i) => <option key={i} value={i}>{t}</option>)}
+            </select>
+            <FieldError msg={incErrors.type} />
+          </div>
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={labelStyle(dark)}>Descripción detallada</label>
+            <textarea
+              placeholder="Describa la incidencia con el mayor detalle posible…"
+              value={incForm.desc}
+              rows={3}
+              onChange={e => setIncForm({ ...incForm, desc: e.target.value })}
+              style={{ ...inputStyle(dark, !!incErrors.desc), resize: 'vertical', minHeight: '72px' }}
+            />
+            <FieldError msg={incErrors.desc} />
           </div>
         </div>
-
-        {/* Resolver Incidencia */}
-        <div>
-          {subSectionTitle('✔️ Resolver Incidencia', '#0891b2')}
-          <p style={{ fontSize: '12px', color: dark ? '#64748b' : '#94a3b8', marginTop: '-8px', marginBottom: '12px' }}>(Solo el admin puede marcar una incidencia como resuelta)</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div>
-              <label style={labelStyle(dark)}>ID Envío</label>
-              <input
-                type="number" min="1" placeholder="######"
-                value={resolveForm.id}
-                onChange={e => setResolveForm({ ...resolveForm, id: e.target.value })}
-                style={inputStyle(dark)}
-              />
-            </div>
-            <div>
-              <label style={labelStyle(dark)}>Índice de incidencia</label>
-              <input
-                type="number" min="0" placeholder="0, 1, 2…"
-                value={resolveForm.incIdx}
-                onChange={e => setResolveForm({ ...resolveForm, incIdx: e.target.value })}
-                style={inputStyle(dark)}
-              />
-              <p style={{ fontSize: '11px', color: dark ? '#64748b' : '#94a3b8', marginTop: '4px' }}>
-                El índice se visualiza en la tabla de incidencias (columna #).
-              </p>
-            </div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '14px' }}>
-            <button
-              onClick={handleResolve}
-              disabled={opPending}
-              style={{ ...btnPrimary(opPending), backgroundColor: opPending ? '#67e8f9' : '#0891b2' }}
-            >
-              {opPending ? '⏳ Procesando…' : '✔️ Marcar Resuelta'}
-            </button>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '14px' }}>
+          <button
+            onClick={handleIncident}
+            disabled={opPending}
+            style={{ ...btnPrimary(opPending), backgroundColor: opPending ? '#fcd34d' : '#d97706' }}
+          >
+            {opPending ? '⏳ Registrando…' : '⚠️ Reportar Incidencia'}
+          </button>
         </div>
-
       </div>
 
       <hr style={{ border: 'none', borderTop: `1px solid ${dark ? '#334155' : '#e2e8f0'}`, margin: '16px 0' }} />
       <CheckpointsTable />
       <div style={{ marginTop: '20px' }}>
-        <IncidentsTable />
+        <IncidentsTable push={push} />
       </div>
     </Card>
   )
@@ -1603,7 +1569,7 @@ function ShipmentsTable() {
           </div>
         ) : (
           <div style={{ marginTop: '8px', borderRadius: '8px', overflowX: 'auto', overflowY: 'auto', maxHeight: '520px', WebkitOverflowScrolling: 'touch', border: '0.5px solid #e2e8f0' }}>
-            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'separate', borderSpacing: 0 }}>
               <thead>
                 <tr>
                   {['ID', 'Producto', 'Remitente / Destinatario', 'Ruta', 'Estado / Fecha'].map(h => (
@@ -1794,13 +1760,15 @@ function CheckpointRows({ shipmentId, tick }: { shipmentId: number; tick: number
 }
 
 // ---------------------------------------------------------------------------
-// 6b. Tabla de Incidencias (dentro de Operaciones)
+// 6b. Tabla de Incidencias (dentro de Operaciones) — botón Resolver inline
 // ---------------------------------------------------------------------------
-function IncidentsTable() {
+function IncidentsTable({ push }: { push: ReturnType<typeof useToast>['push'] }) {
   const { dark } = useDark()
-  const { data: nextShipId, refetch: refetchShip }: any = useReadContract({ address: CONTRACT_ADDRESS, abi: ABI, functionName: 'nextShipmentId' })
+  const { data: nextShipId, refetch: refetchShip }: any = useReadContract({
+    address: CONTRACT_ADDRESS, abi: ABI, functionName: 'nextShipmentId',
+  })
   const totalShipments = nextShipId ? Number(nextShipId) - 1 : 0
-  const [search, setSearch] = useState('')
+  const [search, setSearch]               = useState('')
   const [filterResolved, setFilterResolved] = useState<'all' | 'open' | 'resolved'>('all')
   const [tick, setTick] = useState(0)
 
@@ -1819,9 +1787,7 @@ function IncidentsTable() {
             ? 'bg-slate-700 text-slate-300 border-slate-600 hover:border-amber-400'
             : 'bg-white text-slate-500 border-slate-200 hover:border-amber-300'
       }`}
-    >
-      {label}
-    </button>
+    >{label}</button>
   )
 
   return (
@@ -1830,7 +1796,7 @@ function IncidentsTable() {
         <h3 style={{ fontSize: '14px', fontWeight: 700, textTransform: 'uppercase', color: dark ? '#f1f5f9' : '#1e293b', margin: '0 0 10px' }}>
           ⚠️ Incidencias{' '}
           <span style={{ fontSize: '12px', fontWeight: 400, color: dark ? '#64748b' : '#94a3b8', textTransform: 'none' }}>
-            (Historial de incidencias reportadas en todos los envíos)
+            (Historial de todas las incidencias · botón Resolver para el admin)
           </span>
         </h3>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
@@ -1843,10 +1809,9 @@ function IncidentsTable() {
           placeholder="🔍 Filtrar por ID de envío…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className={`w-full border px-3 py-2 rounded-xl text-xs font-semibold outline-none transition-all focus:ring-2 focus:ring-amber-100 ${dark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-200'}`}
+          className={`w-full border px-3 py-2 rounded-xl text-xs font-semibold outline-none transition-all ${dark ? 'bg-slate-800 border-slate-700 text-slate-200 placeholder-slate-500' : 'bg-slate-50 border-slate-200'}`}
         />
       </div>
-
       <div className="px-5 pb-5">
         {totalShipments === 0 ? (
           <div style={{ padding: '24px 0', textAlign: 'center', color: dark ? '#475569' : '#94a3b8' }}>
@@ -1857,7 +1822,7 @@ function IncidentsTable() {
             <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'separate', borderSpacing: 0 }}>
               <thead>
                 <tr>
-                  {['#', 'Envío', 'Tipo', 'Descripción', 'Reporter', 'Fecha', 'Estado'].map(h => (
+                  {['#', 'Envío', 'Tipo', 'Descripción', 'Reporter', 'Fecha', 'Estado', 'Acción'].map(h => (
                     <th key={h} style={TH_STYLE}>{h}</th>
                   ))}
                 </tr>
@@ -1866,7 +1831,7 @@ function IncidentsTable() {
                 {Array.from({ length: totalShipments }, (_, i) => i + 1)
                   .filter(id => !search || String(id).includes(search.trim()))
                   .map(shipId => (
-                    <IncidentRows key={shipId} shipmentId={shipId} tick={tick} filterResolved={filterResolved} />
+                    <IncidentRows key={shipId} shipmentId={shipId} tick={tick} filterResolved={filterResolved} push={push} />
                   ))}
               </tbody>
             </table>
@@ -1877,19 +1842,48 @@ function IncidentsTable() {
   )
 }
 
-function IncidentRows({ shipmentId, tick, filterResolved }: { shipmentId: number; tick: number; filterResolved: 'all' | 'open' | 'resolved' }) {
+function IncidentRows({ shipmentId, tick, filterResolved, push }: {
+  shipmentId: number
+  tick: number
+  filterResolved: 'all' | 'open' | 'resolved'
+  push: ReturnType<typeof useToast>['push']
+}) {
   const { dark } = useDark()
   const { data: incs, refetch }: any = useReadContract({
     address: CONTRACT_ADDRESS, abi: ABI, functionName: 'getShipmentIncidents',
     args: [BigInt(shipmentId), BigInt(0), BigInt(50)],
   })
+  const publicClient  = usePublicClient()
+  const { address }   = useAccount()
+  const { write }     = useTx(push)
+  const [resolving, setResolving] = useState<number | null>(null)
 
   useEffect(() => { refetch() }, [tick])
+
+  const handleResolve = async (incidentId: bigint, localIdx: number) => {
+    setResolving(localIdx)
+    const args: [bigint] = [incidentId]
+    try {
+      await publicClient?.simulateContract({
+        address: CONTRACT_ADDRESS, abi: ABI,
+        functionName: 'resolveIncident',
+        args, account: address as Address,
+      })
+    } catch (e: any) {
+      push(parseContractError(e), 'err')
+      setResolving(null)
+      return
+    }
+    write(
+      { address: CONTRACT_ADDRESS, abi: ABI, functionName: 'resolveIncident', args },
+      { onSuccess: () => { setTimeout(() => refetch(), 2000); setResolving(null) } }
+    )
+  }
 
   if (!incs) {
     return (
       <tr>
-        {[...Array(7)].map((_, i) => (
+        {[...Array(8)].map((_, i) => (
           <td key={i} style={TD_STYLE}><div className="h-3 bg-slate-100 rounded w-14 animate-pulse" /></td>
         ))}
       </tr>
@@ -1898,29 +1892,30 @@ function IncidentRows({ shipmentId, tick, filterResolved }: { shipmentId: number
 
   if (incs.length === 0) return null
 
-  const filtered = incs.filter((inc: any) => {
-    if (filterResolved === 'open')     return !inc.resolved
-    if (filterResolved === 'resolved') return  inc.resolved
-    return true
-  })
+  const filtered: { inc: any; idx: number }[] = incs
+    .map((inc: any, idx: number) => ({ inc, idx }))
+    .filter(({ inc }: { inc: any }) => {
+      if (filterResolved === 'open')     return !inc.resolved
+      if (filterResolved === 'resolved') return  inc.resolved
+      return true
+    })
 
   if (filtered.length === 0) return null
 
   return (
     <>
-      {filtered.map((inc: any, i: number) => {
-        const globalIdx = incs.indexOf(inc)
+      {filtered.map(({ inc, idx }) => {
         const isResolved: boolean = inc.resolved
+        const isResolving = resolving === idx
         return (
-          <tr key={i}
-            style={{ backgroundColor: isResolved
+          <tr key={idx} style={{
+            backgroundColor: isResolved
               ? (dark ? '#052e16' : '#f0fdf4')
-              : (dark ? '#2d1a0e' : '#fff7ed')
-            }}
-          >
+              : (dark ? '#2d1a0e' : '#fff7ed'),
+          }}>
             <td style={TD_STYLE}>
               <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', backgroundColor: dark ? '#1e293b' : '#f1f5f9', padding: '2px 6px', borderRadius: '5px' }}>
-                {globalIdx}
+                {idx}
               </span>
             </td>
             <td style={TD_STYLE}>
@@ -1949,6 +1944,17 @@ function IncidentRows({ shipmentId, tick, filterResolved }: { shipmentId: number
                 ? <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', backgroundColor: '#dcfce7', color: '#16a34a', border: '1px solid #bbf7d0' }}>✅ Resuelta</span>
                 : <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>🔴 Abierta</span>
               }
+            </td>
+            <td style={{ ...TD_STYLE, textAlign: 'center' }}>
+              {!isResolved && (
+                <button
+                  onClick={() => handleResolve(inc.id, idx)}
+                  disabled={isResolving}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg uppercase border transition-colors disabled:opacity-50 bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100"
+                >
+                  {isResolving ? '⏳' : '✔ Resolver'}
+                </button>
+              )}
             </td>
           </tr>
         )
