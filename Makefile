@@ -31,6 +31,8 @@ deploy :
 	--private-key $(ANVIL_PK) \
 	--broadcast -vvvv
 
+# --------------------------------------------------------------------------------------------------------------------------------------
+
 # Desplegar en Sepolia (Requiere .env con RPC_URL, PRIVATE_KEY y ETHERSCAN_API_KEY)
 deploy-sepolia :
 	@forge script script/DeployLogistics.s.sol:DeployLogistics \
@@ -41,12 +43,16 @@ deploy-sepolia :
 	--etherscan-api-key $(ETHERSCAN_API_KEY) \
 	-vvvv
 
+# --------------------------------------------------------------------------------------------------------------------------------------
+
 # Desplegar script para cargar los actores y generar un evío de prueba
 act-env :
 	forge script script/SetupDemo.s.sol \
 	--rpc-url http://127.0.0.1:8545 \
 	--broadcast \
 	--private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+# --------------------------------------------------------------------------------------------------------------------------------------
 
 # Desplegar script para cargar los checkpoints en el envio de prueba
 chkpnt :
@@ -55,6 +61,8 @@ chkpnt :
 	--broadcast \
 	--sig "run(uint256)" 1
 
+# --------------------------------------------------------------------------------------------------------------------------------------
+
 # Desplegar script para otro envio de prueba (se registran actores si no existen, se crea el envio y los checkpoints, se confirma la entrega
 envio2 :
 	forge script script/AlimentosCongelados.s.sol \
@@ -62,12 +70,16 @@ envio2 :
 	--broadcast \
 	--private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
+# --------------------------------------------------------------------------------------------------------------------------------------
+
 # Desplegar script para envio de insulina con 2 violaciones de temperatura
 insulina :
 	forge script script/ViolacionTemperatura.s.sol \
 	--rpc-url http://127.0.0.1:8545 \
 	--broadcast \
 	--private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+# --------------------------------------------------------------------------------------------------------------------------------------
 
 # setup para entregar a CodeCrypto
 iniciar :
@@ -100,4 +112,23 @@ iniciar :
 	--rpc-url http://127.0.0.1:8545 \
 	--broadcast \
 	--private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+# --------------------------------------------------------------------------------------------------------------------------------------
+
+# 15 envios de ejemplo
+15envios :
+	# hago el despliegue local en anvil
+	@forge script script/DeployLogistics.s.sol:DeployLogistics \
+	--rpc-url $(ANVIL_RPC) \
+	--private-key $(ANVIL_PK) \
+	--broadcast -vvvv \
+
+	# ahora si, los 15 envios
+	forge script script/DemoShipments.s.sol \
+	--rpc-url http://127.0.0.1:8545 \
+	--broadcast \
+	--private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+# --------------------------------------------------------------------------------------------------------------------------------------
+
 
