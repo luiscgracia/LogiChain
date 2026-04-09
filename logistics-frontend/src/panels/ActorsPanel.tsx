@@ -483,10 +483,9 @@ function ActorRow({ address, push, filterActive }: { address: Address; push: Ret
         </div>
       </td>
       <td style={TD_STYLE}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-          <code style={{ fontSize: '13px', fontFamily: 'monospace', color: dark ? '#94a3b8' : '#64748b' }}>{address.slice(0, 6)}</code>
-          <code style={{ fontSize: '13px', fontFamily: 'monospace', color: dark ? '#94a3b8' : '#64748b' }}>…{address.slice(-4)}</code>
-        </div>
+        <code style={{ fontSize: '12px', fontFamily: 'monospace', color: dark ? '#94a3b8' : '#64748b', whiteSpace: 'nowrap' }}>
+          {address.slice(0, 6)}…{address.slice(-4)}
+        </code>
       </td>
       <td style={TD_STYLE}>
         <span className={`text-xs font-semibold px-2 py-1 rounded-lg uppercase border ${ROLE_COLORS[roleIdx] ?? 'bg-slate-50 text-slate-600 border-slate-200'}`}>

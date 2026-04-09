@@ -453,18 +453,30 @@ function CheckpointsTable({ sharedSearch, setSharedSearch }: { sharedSearch: str
   return (
     <div style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', borderRadius: '12px', border: `0.5px solid ${dark ? '#334155' : '#e2e8f0'}`, overflow: 'hidden' }}>
       <div className="border-l-4 border-cyan-500 px-5 pt-5 pb-3">
-        <h3 style={{ fontSize: '14px', fontWeight: 700, textTransform: 'uppercase', color: dark ? '#f1f5f9' : '#1e293b', margin: '0 0 8px' }}>
+        <h3 style={{ fontSize: '14px', fontWeight: 700, textTransform: 'uppercase', color: dark ? '#f1f5f9' : '#1e293b', margin: '0 0 10px' }}>
           Checkpoints{' '}
           <span style={{ fontSize: '12px', fontWeight: 400, color: dark ? '#64748b' : '#94a3b8', textTransform: 'none' }}>
             ({totalCps} checkpoint(s) en {totalShipments} envío(s))
           </span>
         </h3>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+          <button
+            onClick={() => setSharedSearch('')}
+            className={`text-xs font-semibold px-3 py-2 rounded-xl uppercase border transition-colors ${
+              sharedSearch === ''
+                ? 'bg-cyan-600 text-white border-cyan-600'
+                : dark
+                  ? 'bg-slate-700 text-slate-300 border-slate-600 hover:border-cyan-400'
+                  : 'bg-white text-slate-500 border-slate-200 hover:border-cyan-300'
+            }`}
+          >Todos</button>
+        </div>
         <input
           type="text"
           placeholder="🔍 Filtrar por ID de envío…"
           value={sharedSearch}
           onChange={e => setSharedSearch(e.target.value)}
-          className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-cyan-100 transition-all"
+          className={`w-full border px-3 py-2 rounded-xl text-xs font-semibold outline-none transition-all ${dark ? 'bg-slate-800 border-slate-700 text-slate-200 placeholder-slate-500' : 'bg-slate-50 border-slate-200'}`}
         />
       </div>
 

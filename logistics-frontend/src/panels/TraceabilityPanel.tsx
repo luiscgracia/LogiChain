@@ -92,7 +92,7 @@ export function TraceabilityPanel() {
       const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' })
       const M = 10
       const W = doc.internal.pageSize.getWidth()
-      const azul:      [number, number, number] = [5, 60, 190]
+      const azul:      [number, number, number] = [5, 150, 105]
       const negro:     [number, number, number] = [0, 0, 0]
       const blanco:    [number, number, number] = [255, 255, 255]
       const grisClaro: [number, number, number] = [245, 247, 250]
