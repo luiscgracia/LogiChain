@@ -39,6 +39,7 @@ export function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['p
   const [globalShipId, setGlobalShipId] = useState('')
   const [globalShipStatus, setGlobalShipStatus] = useState<number | null>(null)
   const [globalShipStatusLoading, setGlobalShipStatusLoading] = useState(false)
+  const [globalShipNotFound, setGlobalShipNotFound] = useState(false)
   const [cpForm, setCpForm] = useState({ loc: '', type: -1, notes: '', temp: '', noTemp: false })
   const [statusForm, setStatusForm] = useState({ status: -1 })
   const [confirmOpenIncidents, setConfirmOpenIncidents] = useState<number | null>(null)
@@ -48,11 +49,18 @@ export function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['p
   const [sharedSearch, setSharedSearch] = useState('')
 
   const isDelivered = globalShipStatus === 4
+  const shipNotFound = globalShipNotFound
+  // Cancelar solo permitido en estado Creado (0) o En hub (2)
+  const CANCELLABLE_STATUSES = [0, 2]
+  const canCancel = globalShipStatus !== null && CANCELLABLE_STATUSES.includes(globalShipStatus)
 
   const { write: writeOp, isPending: opPending, isSuccess: opSuccess } = useTx(push)
   const lastOpRef = useRef<null | 'checkpoint' | 'status' | 'confirm' | 'cancel' | 'incident' | 'resolve'>(null)
   const publicClient = usePublicClient()
   const { address } = useAccount()
+  const { data: nextShipmentId }: any = useReadContract({
+    address: CONTRACT_ADDRESS, abi: ABI, functionName: 'nextShipmentId',
+  })
 
   useEffect(() => {
     if (opSuccess) {
@@ -69,9 +77,19 @@ export function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['p
     if (!globalShipId || isNaN(Number(globalShipId)) || !publicClient) {
       setGlobalShipStatus(null)
       setConfirmOpenIncidents(null)
+      setGlobalShipNotFound(false)
+      return
+    }
+    const id = Number(globalShipId)
+    if (id <= 0 || (nextShipmentId !== undefined && id >= Number(nextShipmentId))) {
+      setGlobalShipStatus(null)
+      setConfirmOpenIncidents(null)
+      setGlobalShipNotFound(true)
+      setGlobalShipStatusLoading(false)
       return
     }
     let cancelled = false
+    setGlobalShipNotFound(false)
     setGlobalShipStatusLoading(true)
     Promise.all([
       publicClient.readContract({
@@ -93,10 +111,10 @@ export function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['p
       const open = (incidents ?? []).filter((inc: any) => !inc.resolved).length
       setConfirmOpenIncidents(open)
     }).catch(() => {
-      if (!cancelled) { setGlobalShipStatus(null); setConfirmOpenIncidents(null) }
+      if (!cancelled) { setGlobalShipStatus(null); setConfirmOpenIncidents(null); setGlobalShipNotFound(true) }
     }).finally(() => { if (!cancelled) setGlobalShipStatusLoading(false) })
     return () => { cancelled = true }
-  }, [globalShipId, publicClient])
+  }, [globalShipId, publicClient, nextShipmentId])
 
   const simulate = async (functionName: string, args: any[]): Promise<boolean> => {
     if (!publicClient) {
@@ -233,14 +251,27 @@ export function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['p
         {globalShipStatusLoading && (
           <span style={{ fontSize: '12px', color: dark ? '#64748b' : '#94a3b8' }}>⏳ Verificando…</span>
         )}
+        {!globalShipStatusLoading && shipNotFound && globalShipId && (
+          <span style={{
+            fontSize: '12px', fontWeight: 700, padding: '3px 10px', borderRadius: '6px',
+            backgroundColor: dark ? '#450a0a' : '#fef2f2',
+            color: dark ? '#fca5a5' : '#dc2626',
+            border: `1px solid ${dark ? '#991b1b' : '#fecaca'}`,
+          }}>
+            ❌ Envío no encontrado
+          </span>
+        )}
         {!globalShipStatusLoading && globalShipStatus !== null && (
           <span style={{
             fontSize: '12px', fontWeight: 700, padding: '3px 10px', borderRadius: '6px',
-            backgroundColor: isDelivered ? (dark ? '#1e3a5f' : '#eff6ff') : (dark ? '#052e16' : '#f0fdf4'),
-            color: isDelivered ? (dark ? '#93c5fd' : '#1d4ed8') : (dark ? '#86efac' : '#16a34a'),
-            border: `1px solid ${isDelivered ? (dark ? '#1d4ed8' : '#bfdbfe') : (dark ? '#166534' : '#bbf7d0')}`,
+            backgroundColor: isDelivered ? (dark ? '#1e3a5f' : '#eff6ff') : (dark ? '#1e293b' : '#f8fafc'),
+            color: isDelivered ? (dark ? '#93c5fd' : '#1d4ed8') : (dark ? '#e2e8f0' : '#1e293b'),
+            border: `1px solid ${isDelivered ? (dark ? '#1d4ed8' : '#bfdbfe') : (dark ? '#475569' : '#cbd5e1')}`,
           }}>
-            {isDelivered ? '📦 Ya entregado' : `Estado: ${globalShipStatus}`}
+            {isDelivered ? '📦 ' : '🔖 '}
+            {SHIPMENT_STATUSES[globalShipStatus] ?? `Estado ${globalShipStatus}`}
+            {' '}
+            <span style={{ opacity: 0.5, fontWeight: 400 }}>({globalShipStatus})</span>
           </span>
         )}
       </div>
@@ -252,6 +283,16 @@ export function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['p
           <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: dark ? '#93c5fd' : '#1d4ed8', lineHeight: '1.5' }}>
             El envío <strong>#{globalShipId}</strong> ya fue entregado. No es posible registrar checkpoints, cambiar el estado, confirmar entrega, cancelar ni reportar incidencias sobre este envío.
             Solo puedes consultar su trazabilidad o generar el PDF.
+          </p>
+        </div>
+      )}
+
+      {/* BLOQUEO GLOBAL — envío no existe */}
+      {shipNotFound && globalShipId && (
+        <div style={{ marginBottom: '20px', padding: '12px 16px', borderRadius: '10px', backgroundColor: dark ? '#450a0a' : '#fef2f2', border: `1px solid ${dark ? '#991b1b' : '#fecaca'}`, display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+          <span style={{ fontSize: '18px', flexShrink: 0 }}>❌</span>
+          <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: dark ? '#fca5a5' : '#dc2626', lineHeight: '1.5' }}>
+            El envío <strong>#{globalShipId}</strong> no existe. Verifica el ID ingresado.
           </p>
         </div>
       )}
@@ -309,7 +350,7 @@ export function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['p
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
-          <button onClick={handleCheckpoint} disabled={opPending || isDelivered || !globalShipId} style={btnPrimary(opPending || isDelivered || !globalShipId)}>
+          <button onClick={handleCheckpoint} disabled={opPending || isDelivered || shipNotFound || !globalShipId} style={btnPrimary(opPending || isDelivered || shipNotFound || !globalShipId)}>
             {opPending ? '⏳ Registrando…' : 'Registrar Checkpoint'}
           </button>
         </div>
@@ -332,7 +373,7 @@ export function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['p
             </select>
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
-            <button onClick={handleStatus} disabled={opPending || isDelivered || !globalShipId} style={btnPrimary(opPending || isDelivered || !globalShipId)}>
+            <button onClick={handleStatus} disabled={opPending || isDelivered || shipNotFound || !globalShipId} style={btnPrimary(opPending || isDelivered || shipNotFound || !globalShipId)}>
               {opPending ? '⏳ Procesando…' : 'Actualizar Estado'}
             </button>
           </div>
@@ -368,8 +409,8 @@ export function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['p
           <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
             <button
               onClick={handleConfirm}
-              disabled={opPending || isDelivered || !globalShipId || globalShipStatus !== 3 || (confirmOpenIncidents !== null && confirmOpenIncidents > 0)}
-              style={btnPrimary(opPending || isDelivered || !globalShipId || globalShipStatus !== 3 || (confirmOpenIncidents !== null && confirmOpenIncidents > 0))}
+              disabled={opPending || isDelivered || shipNotFound || !globalShipId || globalShipStatus !== 3 || (confirmOpenIncidents !== null && confirmOpenIncidents > 0)}
+              style={btnPrimary(opPending || isDelivered || shipNotFound || !globalShipId || globalShipStatus !== 3 || (confirmOpenIncidents !== null && confirmOpenIncidents > 0))}
             >
               {opPending ? '⏳ …' : 'Confirmar Entrega'}
             </button>
@@ -380,8 +421,16 @@ export function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['p
         <div style={{ paddingLeft: '24px' }}>
           {subSectionTitle('❌ Cancelar Envío', '#dc2626')}
           <p style={{ fontSize: '12px', color: dark ? '#64748b' : '#94a3b8', marginTop: '-8px', marginBottom: '12px' }}>(Solo sender)</p>
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
-            <button onClick={handleCancel} disabled={opPending || isDelivered || !globalShipId} style={btnDanger(opPending || isDelivered || !globalShipId)}>
+          {globalShipId && globalShipStatus !== null && !shipNotFound && !canCancel && (
+            <div style={{ marginBottom: '10px', padding: '8px 12px', borderRadius: '8px', backgroundColor: dark ? '#422006' : '#fffbeb', border: `1px solid ${dark ? '#92400e' : '#fde68a'}`, display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <span style={{ fontSize: '14px', flexShrink: 0 }}>⚠️</span>
+              <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: dark ? '#fcd34d' : '#92400e', lineHeight: '1.4' }}>
+                Solo se puede cancelar un envío en estado <strong>Creado</strong> o <strong>En hub</strong>.
+              </p>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px' }}>
+            <button onClick={handleCancel} disabled={opPending || shipNotFound || !globalShipId || !canCancel} style={btnDanger(opPending || shipNotFound || !globalShipId || !canCancel)}>
               {opPending ? '⏳ …' : 'Cancelar Envío'}
             </button>
           </div>
@@ -424,8 +473,8 @@ export function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['p
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: '14px' }}>
           <button
             onClick={handleIncident}
-            disabled={opPending || isDelivered || !globalShipId}
-            style={{ ...btnPrimary(opPending || isDelivered || !globalShipId), backgroundColor: (opPending || isDelivered || !globalShipId) ? '#fcd34d' : '#d97706' }}
+            disabled={opPending || isDelivered || shipNotFound || !globalShipId}
+            style={{ ...btnPrimary(opPending || isDelivered || shipNotFound || !globalShipId), backgroundColor: (opPending || isDelivered || shipNotFound || !globalShipId) ? '#fcd34d' : '#d97706' }}
           >
             {opPending ? '⏳ Registrando…' : '⚠️ Reportar Incidencia'}
           </button>
