@@ -308,6 +308,7 @@ export function inputStyle(dark: boolean, error = false): React.CSSProperties {
     width: '100%',
     fontFamily: 'Inter, system-ui, sans-serif',
     fontSize: '15px',
+    textAlign: 'left',
     padding: '8px 12px',
     border: `1px solid ${error ? '#fca5a5' : dark ? '#334155' : '#e2e8f0'}`,
     borderRadius: '8px',

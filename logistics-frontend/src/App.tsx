@@ -12,13 +12,13 @@ import { AnvilStatePanel }				 from './panels/AnvilStatePanel'
 // ---------------------------------------------------------------------------
 // Tab types
 // ---------------------------------------------------------------------------
-type TabId = 'actores' | 'envios' | 'operaciones' | 'trazabilidad'
+type TabId = 'envios' | 'operaciones' | 'trazabilidad' | 'actores' | 'estado contrato'
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: 'actores',			label: 'Actores',		  icon: '👥' },
   { id: 'envios',			label: 'Envíos',		  icon: '📦' },
   { id: 'operaciones',		label: 'Operaciones',	  icon: '⚙️' },
   { id: 'trazabilidad',		label: 'Trazabilidad',	  icon: '🔍' },
+  { id: 'actores',			label: 'Actores',		  icon: '👥' },
   { id: 'estado contrato',	label: 'Estado Contrato', icon: '📓' },
 ]
 
@@ -32,7 +32,7 @@ export default function App() {
   const { toasts, push } = useToast()
   const queryClient = useQueryClient()
   const [dark, setDark] = useState(true)
-  const [activeTab, setActiveTab] = useState<TabId>('actores')
+  const [activeTab, setActiveTab] = useState<TabId>('trazabilidad')
 
   const connectWallet = () => {
     const c = connectors.find(c => c.id === 'injected') ?? connectors[0]
@@ -184,10 +184,10 @@ export default function App() {
             </div>
           ) : (
             <main style={{ maxWidth: '1200px', minWidth: '1100px', width: '100%', margin: '0 auto', padding: '24px 16px 100px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '28px' }}>
-              {activeTab === 'actores'			&& <ActorsTab		  push={push} />}
               {activeTab === 'envios'			&& <><ShippingPanel   push={push} /><ShipmentsTable /></>}
               {activeTab === 'operaciones'		&& <OperationsPanel	  push={push} />}
               {activeTab === 'trazabilidad'		&& <TraceabilityPanel push={push} />}
+              {activeTab === 'actores'			&& <ActorsTab		  push={push} />}
               {activeTab === 'estado contrato'	&& <AnvilStatePanel />}
             </main>
           )}

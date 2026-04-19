@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useReadContract } from 'wagmi'
 import { CONTRACT_ADDRESS, ABI } from '../blockchain/config'
+import { FONDO_BASE64 } from '../../public/fondoPDF64'
 import {
   useDark,
   btnPrimary,
@@ -21,8 +22,6 @@ import {
   Card,
   FieldError,
 } from '../shared'
-
-import { FONDO_BASE64 } from '../../public/fondoPDF64'
 
 // ---------------------------------------------------------------------------
 // loadJsPDF — carga jsPDF y autoTable dinámicamente
@@ -182,14 +181,14 @@ export function TraceabilityPanel() {
         </span>
       </h2>
 
-      <div className="mt-5">
-        <div style={{ width: 'min(33%, 320px)', minWidth: '200px' }}>
-          <label style={labelStyle(dark)}>ID Envío</label>
+      <div className="mt-5" style={{ display: 'flex', flexDirection: 'column', width: '95.5%', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', backgroundColor: dark ? '#1e293b' : '#f1f5f9', border: `5px solid ${dark ? '#334155' : '#e2e8f0'}`, marginBottom: '20px' }}>
+        <div style={{ width: 'min(21%, 200px)', minWidth: '200px' }}>
+          <label style={{...labelStyle(dark), textAlign: 'center'}}>📦 ID Envío</label>
           <input
-            type="number" min="1" placeholder="######"
+            type="number" min="1" placeholder="Ingrese el ID del envío"
             value={id}
             onChange={e => { setId(e.target.value); setQueried(false); setIdError('') }}
-            style={inputStyle(dark, !!idError)}
+            style={{ ...inputStyle(dark, !!idError), textAlign: 'center' }}
           />
           <FieldError msg={idError} />
         </div>
@@ -333,7 +332,7 @@ export function TraceabilityPanel() {
       )}
 
       {queried && (!checkpoints || checkpoints.length === 0) && (!incidents || incidents.length === 0) && id && (
-        <p className="mt-8 text-center text-xs text-slate-500 italic">Sin datos para el envío #{id}</p>
+        <p className="mt-8 text-center text-xs text-slate-500 italic" style={{ textAlign: 'center' }}>El envío <b>#{id}</b> no existe ó no tiene datos guardados.</p>
       )}
     </Card>
   )

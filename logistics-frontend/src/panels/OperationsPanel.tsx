@@ -240,13 +240,13 @@ export function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['p
       </h2>
 
       {/* GLOBAL SHIPMENT ID */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', backgroundColor: dark ? '#1e293b' : '#f1f5f9', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`, marginBottom: '20px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', width: '95.5%', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', backgroundColor: dark ? '#1e293b' : '#f1f5f9', border: `5px solid ${dark ? '#334155' : '#e2e8f0'}`, marginBottom: '20px' }}>
         <span style={{ fontSize: '13px', fontWeight: 700, color: dark ? '#94a3b8' : '#64748b', whiteSpace: 'nowrap' }}>📦 ID Envío</span>
         <input
-          type="number" min="1" placeholder="Ingresa el ID del envío…"
+          type="number" min="1" placeholder="Ingrese el ID del envío"
           value={globalShipId}
           onChange={e => { setGlobalShipId(e.target.value); setSharedSearch(e.target.value); setGlobalShipStatus(null); setConfirmOpenIncidents(null) }}
-          style={{ ...inputStyle(dark), flex: '0 0 180px', width: '180px', margin: 0 }}
+          style={{ ...inputStyle(dark), flex: '0 0 2px', width: '200px', margin: 0, textAlign: 'center' }}
         />
         {globalShipStatusLoading && (
           <span style={{ fontSize: '12px', color: dark ? '#64748b' : '#94a3b8' }}>⏳ Verificando…</span>
@@ -282,7 +282,7 @@ export function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['p
           <span style={{ fontSize: '18px', flexShrink: 0 }}>📦</span>
           <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: dark ? '#93c5fd' : '#1d4ed8', lineHeight: '1.5' }}>
             El envío <strong>#{globalShipId}</strong> ya fue entregado. No es posible registrar checkpoints, cambiar el estado, confirmar entrega, cancelar ni reportar incidencias sobre este envío.
-            Solo puedes consultar su trazabilidad o generar el PDF.
+            Solo puede consultar su trazabilidad o generar el PDF.
           </p>
         </div>
       )}
@@ -292,7 +292,7 @@ export function OperationsPanel({ push }: { push: ReturnType<typeof useToast>['p
         <div style={{ marginBottom: '20px', padding: '12px 16px', borderRadius: '10px', backgroundColor: dark ? '#450a0a' : '#fef2f2', border: `1px solid ${dark ? '#991b1b' : '#fecaca'}`, display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
           <span style={{ fontSize: '18px', flexShrink: 0 }}>❌</span>
           <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: dark ? '#fca5a5' : '#dc2626', lineHeight: '1.5' }}>
-            El envío <strong>#{globalShipId}</strong> no existe. Verifica el ID ingresado.
+            El envío <strong>#{globalShipId}</strong> no existe. Verifique el ID ingresado.
           </p>
         </div>
       )}
