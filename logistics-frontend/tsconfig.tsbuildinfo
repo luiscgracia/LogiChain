@@ -1,1 +1,1 @@
-{"root":["./src/App.tsx","./src/main.tsx","./src/blockchain/config.ts"],"errors":true,"version":"5.9.3"}
+{"root":["./src/App.tsx","./src/App_solo_metamask.tsx","./src/main.tsx","./src/shared.tsx","./src/blockchain/config.ts","./src/panels/ActorsPanel.tsx","./src/panels/AnvilStatePanel.tsx","./src/panels/LocationSelect.tsx","./src/panels/OperationsPanel.tsx","./src/panels/ShipmentsPanel.tsx","./src/panels/TraceabilityPanel.tsx"],"errors":true,"version":"5.9.3"}

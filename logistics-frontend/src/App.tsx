@@ -35,7 +35,11 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('trazabilidad')
 
   const connectWallet = () => {
-    const c = connectors.find(c => c.id === 'injected') ?? connectors[0]
+    const mmConnector = connectors.find(c => 
+      c.type === 'injected' && 
+      (c.name === 'MetaMask' || (c as any).rdns === 'io.metamask')
+    );
+    const c = mmConnector ?? connectors.find(c => c.id === 'injected') ?? connectors[0]
     connect({ connector: c })
   }
 

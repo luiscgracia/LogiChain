@@ -721,8 +721,6 @@ function IncidentRows({ shipmentId, tick, filterResolved, push }: {
   const [resolveModal, setResolveModal] = useState<{ incidentId: bigint; localIdx: number } | null>(null)
   const [resolveNote, setResolveNote] = useState('')
 
-
-
   useEffect(() => { refetch() }, [tick])
 
   const openResolveModal = (incidentId: bigint, localIdx: number) => {
@@ -787,8 +785,8 @@ function IncidentRows({ shipmentId, tick, filterResolved, push }: {
               : (dark ? '#2d1a0e' : '#fff7ed'),
           }}>
             <td style={TD_STYLE}>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', backgroundColor: dark ? '#1e293b' : '#f1f5f9', padding: '2px 6px', borderRadius: '5px' }}>
-                {idx}
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#94a3b8', backgroundColor: dark ? '#1e293b' : '#f1f5f9', padding: '2px 6px', borderRadius: '5px' }}>
+                {idx + 1}
               </span>
             </td>
             <td style={TD_STYLE}>
