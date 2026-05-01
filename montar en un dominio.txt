@@ -1,0 +1,215 @@
+¡Buena pregunta!
+Para montarlo en un dominio público, en este repo necesitas resolver 2 despliegues:
+
+Frontend (Vite/React) a Vercel/Netlify/Cloudflare Pages.
+
+Contrato en una red pública (Sepolia, Polygon, etc.) y conectar el frontend a esa red.
+
+Ahora mismo el frontend está atado a Anvil local (127.0.0.1:8545) y a chain: anvil, así que así como está no funciona desde internet.
+
+Lo mínimo que debes cambiar
+El frontend usa wagmi/chains con anvil y RPC localhost; eso hay que cambiar a una red pública (ej. sepolia) y su RPC público/privado (Infura, Alchemy, QuickNode, etc.).
+
+La dirección del contrato se está leyendo de un broadcast local (broadcast/.../31337/run-latest.json), que es de tu entorno local. Para producción conviene usar variable de entorno (VITE_CONTRACT_ADDRESS) o un archivo de config por entorno.
+
+El build del frontend se hace con npm run build en logistics-frontend.
+
+Paso a paso recomendado (rápido)
+1) Desplegar contrato en testnet pública
+Puedes usar Sepolia (el repo ya contempla despliegues Foundry y variables .env).
+
+2) Actualizar frontend para red pública
+En logistics-frontend/src/blockchain/config.ts:
+
+Cambia anvil por sepolia (u otra red).
+
+Cambia http('http://127.0.0.1:8545') por tu RPC HTTPS.
+
+Define CONTRACT_ADDRESS desde import.meta.env.VITE_CONTRACT_ADDRESS.
+
+Mantén ABI desde out/.../LogisticsTracking.json (recuerda correr forge build antes de build frontend).
+
+3) Probar local “modo producción”
+cd logistics-frontend
+npm install
+npm run build
+npm run preview
+(El script de build está definido en ese package).
+
+4) Subir frontend a Vercel (ejemplo)
+Importa el repo en Vercel.
+
+Root Directory: logistics-frontend
+
+Build Command: npm run build
+
+Output: dist
+
+Variables:
+
+VITE_CONTRACT_ADDRESS=0x...
+
+VITE_RPC_URL=https://... (si decides usarla en config)
+
+5) Conectar tu dominio
+En Vercel: Project → Settings → Domains.
+
+Añades tudominio.com y www.tudominio.com.
+
+Configuras DNS en tu registrador (A/CNAME según te indique Vercel).
+
+Importante para que no falle en producción
+No dejes Anvil/localhost en config, porque usuarios externos no pueden llegar a tu 127.0.0.1.
+
+Si usas el script sync-contract.js, hoy escribe .env en raíz del repo; asegúrate de que el frontend lea variables correctas en su entorno de build cloud.
+
+Tu script raíz deploy hoy despliega al localhost de Anvil; para internet necesitas RPC pública y key de despliegue segura (variables del proveedor CI/CD).
+
+Si quieres, te puedo pasar en el siguiente mensaje un diff exacto de config.ts para Sepolia + Vercel (copiar/pegar) y una checklist de deployment en 10 minutos.
+
+¡Perfecto! Aquí tienes un cambio exacto para dejar el frontend listo para dominio público (Sepolia + variables de entorno), más el checklist de despliegue.
+
+1) Cambia logistics-frontend/src/blockchain/config.ts
+Reemplázalo por esto:
+
+import { http, createConfig } from 'wagmi'
+import { sepolia } from 'wagmi/chains'
+import { injected } from 'wagmi/connectors'
+import LogisticsArtifact from '../../../out/LogisticsTracking.sol/LogisticsTracking.json'
+
+const rpcUrl = import.meta.env.VITE_RPC_URL as string | undefined
+const contractAddress = import.meta.env.VITE_CONTRACT_ADDRESS as `0x${string}` | undefined
+
+if (!rpcUrl) {
+  throw new Error('Falta VITE_RPC_URL en las variables de entorno')
+}
+
+if (!contractAddress) {
+  throw new Error('Falta VITE_CONTRACT_ADDRESS en las variables de entorno')
+}
+
+export const CONTRACT_ADDRESS = contractAddress
+
+export const ACTOR_ROLES = ['NONE', 'SENDER', 'CARRIER', 'HUB', 'RECIPIENT', 'INSPECTOR']
+
+export const ABI = LogisticsArtifact.abi
+
+export const config = createConfig({
+  chains: [sepolia],
+  connectors: [injected()],
+  multiInjectedProviderDiscovery: true,
+  transports: {
+    [sepolia.id]: http(rpcUrl),
+  },
+})
+Esto reemplaza la dependencia actual a anvil + 127.0.0.1:8545 + broadcast local, que hoy está pensado para entorno local, no para internet.
+
+2) Crea logistics-frontend/.env.production
+VITE_RPC_URL=https://sepolia.infura.io/v3/TU_API_KEY
+VITE_CONTRACT_ADDRESS=0xTU_CONTRATO_DEPLOYADO
+Si prefieres, puedes usar .env local para pruebas y cargar estas mismas variables en Vercel/Netlify para producción.
+
+3) Build local antes de subir
+cd logistics-frontend
+npm install
+npm run build
+npm run preview
+Los scripts build y preview ya están definidos en el proyecto.
+
+4) Deploy en Vercel (rápido)
+Importa el repo.
+
+Root Directory: logistics-frontend
+
+Build Command: npm run build
+
+Output Directory: dist
+
+Variables en Vercel:
+
+VITE_RPC_URL
+
+VITE_CONTRACT_ADDRESS
+
+Luego conectas dominio en Settings → Domains.
+
+5) Smart contract en red pública
+Tu flujo local actual usa Anvil/localhost en scripts (--rpc-url http://127.0.0.1:8545), así que para producción necesitas desplegar con RPC pública y key segura en variables de entorno del pipeline/wallet de deploy.
+
+Checklist 10 minutos
+Deploy contrato en Sepolia.
+
+Copiar dirección 0x....
+
+Actualizar config.ts (bloque de arriba).
+
+Definir VITE_RPC_URL y VITE_CONTRACT_ADDRESS.
+
+npm run build local.
+
+Subir a Vercel (root logistics-frontend).
+
+Conectar dominio DNS.
+
+Comandos que usé para revisar tu repo
+rg --files -g 'AGENTS.md'
+
+cat logistics-frontend/package.json
+
+nl -ba logistics-frontend/src/blockchain/config.ts | sed -n '1,220p'
+
+nl -ba package.json | sed -n '1,220p'
+
+nl -ba README.md | sed -n '292,360p'
+
+Si quieres, en el siguiente paso te doy también la variante para Polygon Amoy (mismo patrón, cambiando chain/RPC).
+
+Genial. Aquí va la versión para Polygon Amoy (testnet), lista para copiar/pegar.
+
+logistics-frontend/src/blockchain/config.ts (Amoy)
+import { http, createConfig } from 'wagmi'
+import { polygonAmoy } from 'wagmi/chains'
+import { injected } from 'wagmi/connectors'
+import LogisticsArtifact from '../../../out/LogisticsTracking.sol/LogisticsTracking.json'
+
+const rpcUrl = import.meta.env.VITE_RPC_URL as string | undefined
+const contractAddress = import.meta.env.VITE_CONTRACT_ADDRESS as `0x${string}` | undefined
+
+if (!rpcUrl) throw new Error('Falta VITE_RPC_URL')
+if (!contractAddress) throw new Error('Falta VITE_CONTRACT_ADDRESS')
+
+export const CONTRACT_ADDRESS = contractAddress
+export const ACTOR_ROLES = ['NONE', 'SENDER', 'CARRIER', 'HUB', 'RECIPIENT', 'INSPECTOR']
+export const ABI = LogisticsArtifact.abi
+
+export const config = createConfig({
+  chains: [polygonAmoy],
+  connectors: [injected()],
+  multiInjectedProviderDiscovery: true,
+  transports: {
+    [polygonAmoy.id]: http(rpcUrl),
+  },
+})
+Esto sustituye el estado actual que usa anvil + localhost, que solo sirve localmente.
+
+Variables de entorno
+En logistics-frontend/.env.production:
+
+VITE_RPC_URL=https://polygon-amoy.g.alchemy.com/v2/TU_API_KEY
+VITE_CONTRACT_ADDRESS=0xTU_CONTRATO_EN_AMOY
+Deploy frontend (Vercel)
+Root directory: logistics-frontend
+
+Build command: npm run build
+
+Output: dist
+
+Env vars: las dos de arriba
+
+Scripts existentes del proyecto ya son compatibles (build, preview).
+
+Nota importante contrato
+Tu script raíz deploy está apuntando a Anvil local (127.0.0.1:8545), así que para Amoy debes desplegar contrato con RPC de Amoy y luego poner esa address en VITE_CONTRACT_ADDRESS.
+
+Si quieres, te paso ahora un template de foundry.toml + comando exacto de forge script --broadcast para Amoy.
+
