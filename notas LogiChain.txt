@@ -1,0 +1,459 @@
+PĹANTEAMIENTO PROYECTO EN CODECRYPTO
+
+1. Descripción del Proyecto
+Construir un sistema de trazabilidad logística para monitorizar envíos, paquetes o contenedores a lo largo de toda la cadena de distribución. El objetivo es crear un MVP que permita rastrear cada movimiento del producto desde su origen hasta el destino final, garantizando transparencia y verificabilidad.
+
+Implementar un flujo digital verificable que cubra:
+- Origen: registro del punto de partida del envío
+- Transportista: asignación y verificación del responsable del transporte
+- Hubs logísticos: registro de paso por centros de distribución intermedios
+- Entrega final: confirmación de recepción por el destinatario
+- Sensores IoT (opcional): temperatura, humedad, golpes, apertura de contenedores
+
+Debe generar un panel que muestre movimientos, estados y verificaciones on-chain, junto con smart contracts para gestionar eventos logísticos de forma automática y verificable.
+
+2. Aspectos Clave
+a.	Trazar un envío en varias etapas
+	Flujo básico: Origen → hub intermedio → transportista → destino final
+b.	Registro de Eventos
+	Salida del origen
+	Llegada a hub logístico
+	Escaneo de paquete
+	Incidencias (daños, retrasos, aperturas no autorizadas)
+	Entrega final
+c.	Integración IoT (Opcional)
+
+Sensores que pueden integrarse:
+- Temperatura: crítico para cadena de frío
+- Golpes: acelerómetro para detectar caídas o maltrato
+- Humedad: para productos sensibles a condiciones ambientales
+- Apertura: detectores de puertas/contenedores abiertos
+
+3. Interoperabilidad
+API para consultar estado del envío desde sistemas externos (ERP, WMS, CRM)
+
+4.	Roles y Permisos
+	- Remitente: crea el envío
+	- Transportista: actualiza ubicación y estado
+	- Hub logístico: confirma recepción y salida
+	- Destinatario: confirma entrega
+	- Auditor: solo lectura para verificación
+
+5. Componentes Recomendados del MVP
+
+5.1. Smart Contract
+El contrato inteligente debe incluir como mínimo las siguientes estructuras:
+
+// Definir estos enums
+enum ShipmentStatus { Created, InTransit, AtHub, OutForDelivery, Delivered, Returned, Cancelled }
+enum ActorRole { None, Sender, Carrier, Hub, Recipient, Inspector }
+enum IncidentType { Delay, Damage, Lost, TempViolation, Unauthorized }
+
+// Implementar estos structs
+struct Shipment {
+    uint256 id;
+    address sender;
+    address recipient;
+    string product;
+    string origin;
+    string destination;
+    uint256 dateCreated;
+    uint256 dateDelivered;
+    ShipmentStatus status;
+    uint256[] checkpointIds;
+    uint256[] incidentIds;
+    bool requiresColdChain;    // Si requiere temperatura controlada
+}
+
+struct Checkpoint {
+    uint256 id;
+    uint256 shipmentId;
+    address actor;
+    string location;
+    string checkpointType;     // "Pickup", "Hub", "Transit", "Delivery"
+    uint256 timestamp;
+    string notes;
+    int256 temperature;        // Temperatura en celsius * 10 (para decimales)
+}
+
+struct Incident {
+    uint256 id;
+    uint256 shipmentId;
+    IncidentType incidentType;
+    address reporter;
+    string description;
+    uint256 timestamp;
+    bool resolved;
+}
+
+struct Actor {
+    address actorAddress;
+    string name;
+    ActorRole role;
+    string location;
+    bool isActive;
+}
+
+// Variables de estado
+address public admin;
+uint256 public nextShipmentId = 1;
+uint256 public nextCheckpointId = 1;
+uint256 public nextIncidentId = 1;
+
+// Mappings
+mapping(uint256 => Shipment) public shipments;
+mapping(uint256 => Checkpoint) public checkpoints;
+mapping(uint256 => Incident) public incidents;
+mapping(address => Actor) public actors;
+
+// Eventos
+event ShipmentCreated(uint256 indexed shipmentId, address indexed sender, address indexed recipient, string product);
+event CheckpointRecorded(uint256 indexed checkpointId, uint256 indexed shipmentId, string location, address actor);
+event ShipmentStatusChanged(uint256 indexed shipmentId, ShipmentStatus newStatus);
+event IncidentReported(uint256 indexed incidentId, uint256 indexed shipmentId, IncidentType incidentType);
+event IncidentResolved(uint256 indexed incidentId);
+event DeliveryConfirmed(uint256 indexed shipmentId, address indexed recipient, uint256 timestamp);
+event ActorRegistered(address indexed actorAddress, string name, ActorRole role);
+
+// Programar estas funciones principales
+
+// Gestión de Actores
+function registerActor(string memory _name, ActorRole _role, string memory _location) public;
+function getActor(address _actorAddress) public view returns (Actor memory);
+function deactivateActor(address _actorAddress) public;
+
+// Gestión de Envíos
+function createShipment(address _recipient, string memory _product, string memory _origin, string memory _destination, bool _requiresColdChain) public returns (uint256);
+function getShipment(uint256 _shipmentId) public view returns (Shipment memory);
+function updateShipmentStatus(uint256 _shipmentId, ShipmentStatus _newStatus) public;
+function confirmDelivery(uint256 _shipmentId) public;
+function cancelShipment(uint256 _shipmentId) public;
+
+// Gestión de Checkpoints
+function recordCheckpoint(uint256 _shipmentId, string memory _location, string memory _checkpointType, string memory _notes, int256 _temperature) public returns (uint256);
+function getCheckpoint(uint256 _checkpointId) public view returns (Checkpoint memory);
+function getShipmentCheckpoints(uint256 _shipmentId) public view returns (Checkpoint[] memory);
+
+// Gestión de Incidencias
+function reportIncident(uint256 _shipmentId, IncidentType _incidentType, string memory _description) public returns (uint256);
+function resolveIncident(uint256 _incidentId) public;
+function getIncident(uint256 _incidentId) public view returns (Incident memory);
+function getShipmentIncidents(uint256 _shipmentId) public view returns (Incident[] memory);
+
+// Funciones auxiliares
+function getActorShipments(address _actor) public view returns (uint256[] memory);
+function verifyTemperatureCompliance(uint256 _shipmentId) public view returns (bool);
+
+5.2. Modelo de Datos
+Estructura JSON recomendada para cada evento:
+
+{
+  "shipmentId": "PKG-2024-001",
+  "product": "Medicamento refrigerado",
+  "origin": "Laboratorio FarmaTech",
+  "destination": "Hospital Central",
+  "event": "Hub logístico Madrid",
+  "timestamp": 1710002212,
+  "temperature": 4.5,
+  "actor": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"
+}
+
+5.3. Tests Recomendados (sc/test/LogisticsTracking.t.sol)
+
+// Escribir y hacer pasar estos tests
+contract LogisticsTrackingTest is Test {
+    // Setup y configuración inicial
+    function setUp() public { }
+
+    // Tests de gestión de actores
+    function testRegisterSender() public { }
+    function testRegisterCarrier() public { }
+    function testRegisterHub() public { }
+    function testRegisterRecipient() public { }
+    function testDeactivateActor() public { }
+
+    // Tests de creación de envíos
+    function testCreateShipment() public { }
+	function testCreateShipmentWithColdChain() public { }
+	function testShipmentIdIncrementation() public { }
+	function testGetShipment() public { }
+    function testOnlySenderCanCreateShipment() public { }
+
+    // Tests de checkpoints
+    function testRecordPickupCheckpoint() public { }
+	function testRecordHubCheckpoint() public { }
+	function testRecordTransitCheckpoint() public { }
+	function testRecordDeliveryCheckpoint() public { }
+    function testRecordCheckpointWithTemperature() public { }
+	function testGetShipmentCheckpoints() public { }
+	function testCheckpointTimeline() public { }
+
+    // Tests de actualización de estado
+    function testUpdateStatusToInTransit() public { }
+    function testUpdateStatusToAtHub() public { }
+    function testUpdateStatusToOutForDelivery() public { }
+    function testUpdateStatusToDelivered() public { }
+    function testStatusChangeEmitsEvent() public { }
+
+    // Tests de confirmación de entrega
+    function testConfirmDeliveryByRecipient() public { }
+    function testOnlyRecipientCanConfirmDelivery() public { }
+	function testDeliveryUpdatesTimestamp() public { }
+	function testCannotConfirmDeliveryTwice() public { }
+
+    // Tests de incidencias
+    function testReportDelayIncident() public { }
+    function testReportDamageIncident() public { }
+    function testReportLostIncident() public { }
+    function testReportTempViolation() public { }
+    function testResolveIncident() public { }
+    function testGetShipmentIncidents() public { }
+    function testUnresolvedIncidentsList() public { }
+
+    // Tests de temperatura
+    function testVerifyTemperatureComplianceValid() public { }
+    function testVerifyTemperatureComplianceViolation() public { }
+    function testColdChainMonitoring() public { }
+
+    // Tests de cancelación
+    function testCancelShipment() public { }
+	function testOnlySenderCanCancelShipment() public { }
+	function testCannotCancelDeliveredShipment() public { }
+
+    // Tests de validaciones
+    function testCannotRecordCheckpointForNonExistentShipment() public { }
+    function testCannotReportIncidentForNonExistentShipment() public { }
+    function testInactiveActorCannotRecordCheckpoint() public { }
+
+    // Tests de casos edge
+    function testMultipleCheckpointsForSameShipment() public { }
+    function testShipmentWithMultipleIncidents() public { }
+    function testEmptyCheckpointNotes() public { }
+
+    // Tests de flujo completo
+	function testCompleteShippingFlow() public { }
+    function testPharmaceuticalColdChainFlow() public { }
+	function testMultiHubLogisticsFlow() public { }
+}
+
+5.4. Arquitectura Recomendada
+Componentes técnicos sugeridos:
+Blockchain: EVM
+Backend: Node.js
+Base de datos: SQLite / MongoDB
+Frontend: React / HTML+JavaScript
+Smart Contracts: Solidity
+IoT (opcional): Sensores conectados vía MQTT o API REST
+Mapas: Leaflet o Google Maps para visualización de rutas
+
+En Solidity no existen los decimales (float). Por eso, la temperatura se guarda como int256 (por ejemplo, 25.5°C se envía como 255).
+
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------
+Ejemplo envío farmacéutico nacional con cadena de frío y 7 checkpoints.
+
+El campo temperatura siempre debe estar entre 20 y 80 (el contrato interpreta como 2.0 °C y 8.0 °C).
+Si no hay lectura disponible en algún punto, usar TEMPERATURE_NOT_SET para que no dispare una incidencia falsa.
+
+Los puntos críticos donde el contrato generará automáticamente una incidencia de TempViolation si la temperatura sale del rango son el control en ruta (checkpoint 4) y el arribo al hub destino (checkpoint 5), ya que son los momentos de mayor riesgo de ruptura de la cadena de frío.
+
+1.	Pickup planta/laboratorio:
+	- location — instalación de origen, p.ej. "Laboratorio BioPharma - Bogotá, Zona Industrial".
+	- checkpointType — valor 0 (Pickup).
+	- temperature — lectura termómetro cuarto frío/nevera despacho en el momento de carga. Debe estar entre 20 y 80 (2.0–8.0 °C).
+	- notes — debe incluir:
+		Número de lote del producto
+		Fecha de vencimiento
+		Cantidad de unidades / dosis
+		Estado del embalaje (íntegro, sellado)
+		Nombre del responsable de despacho
+		Número de guía o documento de transporte
+		p.ej.: "Lote: VX-2024-089 | Venc: 2025-08 | 500 dosis | Embalaje íntegro | Resp: J. Martínez | Guía: 4521-B".
+	- actor — se registra automáticamente como msg.sender, es decir la wallet del Carrier o Inspector que ejecuta la transacción.
+
+	El campo notes es el más importante en este checkpoint porque es la única evidencia on-chain de las condiciones en el momento de recoger el producto.
+
+2.	Ingreso HUB ciudad origen:
+	- location — nombre del hub con ciudad, p.ej. "Centro Logístico Frío - Bogotá, Fontibón".
+	- checkpointType — valor 1 (Hub).
+	- temperature — lectura termómetro al momento de recibir la carga en el hub, no durante el tránsito.
+	  (Este es un punto de control crítico porque es la primera verificación después del transporte desde el laboratorio).
+	- notes — debe incluir:
+		Hora de llegada
+		Resultado de la inspección visual del embalaje
+		Número de unidades recibidas vs despachadas (verificar que coincidan)
+		Identificación del vehículo que entregó
+		Nombre del responsable de recepción en el hub
+		Temperatura del cuarto frío donde se almacenará
+		p.ej.: "Hora llegada: 10:35 | Embalaje: OK | 500/500 dosis | Veh: ABC-123 | Resp: C. Torres | Almacén C4: 4.0°C".
+	- actor — wallet operador hub que ejecuta la transacción.
+
+	Es importante que el hub esté registrado en el contrato con rol Hub antes de este paso.
+
+	La violación de temperatura (hacia arriba, mayor a 80 (8.0 °C) o hacia abajo, menor a 20 (2.0 °C)) disparará automáticamente una incidencia
+	TempViolation en este checkpoint.  Si eso ocurre, el contrato crea la incidencia sin intervención manual
+	(el admin deberá resolverla con resolveIncident una vez se tome acción correctiva).
+
+3.	Carga transporte refrigerado:
+	- location — muelle o bahía de despacho del hub, por ejemplo "Hub Fontibón - Muelle 3, Bahía B".
+	- checkpointType — valor 2 (Transit).
+	- temperature — lectura termómetro compartimento refrigerado vehículo después de cargar, no antes.
+	  El vehículo debe estar preenfriado antes de recibir la carga. (certifica que vehículo estaba en temperatura correcta al momento de iniciar tránsito).
+	- notes — debe incluir:
+		Placa del vehículo
+		Nombre del conductor
+		Hora de salida
+		Temperatura del compartimento antes y después de cargar
+		Número de precintos o sellos de seguridad
+		Ruta prevista y hora estimada de llegada
+		Verificación del equipo de frío (marca, último mantenimiento)
+		p.ej.: "Placa: TRK-847 | Conductor: R. Gómez | Salida: 14:20 | Temp pre-carga: 3.5°C | Temp post-carga: 3.8°C | Precinto: #SP-4421 | ETA: 18:30 | Equipo frío: Thermo King OK".
+	- actor — wallet carrier ejecuta transacción. Este actor debe estar registrado con rol carrier en el contrato y debe haber sido asignado al envío
+	  previamente mediante updateShipmentStatus para que no revierta con ActorNotAssignedToShipment.
+
+	Un detalle importante: este checkpoint marca el inicio del tramo de mayor riesgo para la cadena de frío.
+	Si el equipo de refrigeración del vehículo falla en ruta y la temperatura sube, el contrato lo detectará automáticamente en el checkpoint 4
+	(control en ruta) y generará la incidencia. Por eso es crítico dejar evidencia aquí del estado del equipo antes de salir.
+
+4.	Control en Ruta:
+	El checkpoint en ruta es el único mecanismo del contrato que detecta una ruptura de cadena de frío mientras está ocurriendo.
+	Sin este checkpoint, si la temperatura sube a 12 °C durante el tránsito y el vehículo llega al hub destino con el equipo de frío nuevamente en rango,
+	no habría evidencia on-chain de la violación. El contrato solo vería una temperatura correcta en la carga y otra correcta en la llegada — el daño al
+	producto quedaría invisible en la trazabilidad.
+	- location — punto geográfico de referencia donde se toma la lectura, por ejemplo "Autopista Bogotá-Medellín, km 142 - Peaje La Ye".
+	- checkpointType — valor 2 (Transit).
+	- temperature — lectura termómetro compartimento en ese momento.
+	  Si la temperatura está fuera de rango, el contrato creará automáticamente una incidencia TempViolation — eso es exactamente lo que debe pasar.
+	- notes — debe incluir:
+		Hora exacta de la lectura
+		Condición del precinto de seguridad
+		Estado visual del vehículo
+		Cualquier novedad del trayecto (retraso, desvío, incidente)
+		Temperatura exterior como referencia
+		p.ej.: "Hora: 16:45 | Precinto #SP-4421: íntegro | Sin novedades | Temp exterior: 28°C".
+
+	Desde el punto de vista legal y regulatorio también es relevante: en Colombia la cadena de custodia de biológicos exige trazabilidad continua bajo
+	normativa INVIMA, un checkpoint en ruta registrado en blockchain es evidencia inmutable de que el transportador cumplió con el monitoreo activo
+	durante el tránsito, lo que protege tanto al carrier como al remitente ante cualquier reclamación sobre el estado del producto al llegar.
+
+5.	Arribo HUB ciudad destino:
+	Este es el checkpoint más exigente de toda la cadena porque es la primera verificación tras el trayecto largo de mayor riesgo.
+	- location — nombre del hub regional con ciudad destino, por ejemplo "Centro Logístico Frío - Medellín, Itagüí".
+	- checkpointType — valor 1 (Hub).
+	- temperature — lectura tomada al abrir el compartimento del vehículo, antes de descargar.
+	  Este dato es la evidencia de cómo llegó el producto tras el tránsito largo. Si hay discrepancia entre esta lectura y la del checkpoint 4
+	  (control en ruta), puede indicar un problema en el tramo final.
+	- notes — este checkpoint requiere la verificación más completa de toda la cadena:
+		Hora exacta de llegada
+		Placa del vehículo y nombre del conductor
+		Estado del precinto al llegar — si está roto es una incidencia Unauthorized inmediata
+		Temperatura del compartimento al abrir
+		Resultado de inspección visual de cada unidad de embalaje
+		Número de dosis recibidas vs las que salieron en checkpoint 3
+		Temperatura del cuarto frío del hub donde se almacenará
+		Nombre del responsable de recepción en el hub regional
+		Tiempo total de tránsito
+		p.ej.: "Llegada: 18:15 | Veh: TRK-847 - R. Gómez | Precinto #SP-4421: íntegro | Temp apertura: 5.5°C | Embalaje: OK | 500/500 dosis | Almacén R2: 3.8°C | Resp: A. Ríos | Tránsito: 3h55m".
+	- actor — wallet hub regional.
+
+	Hay tres situaciones que este checkpoint puede revelar y que requieren acción inmediata en el contrato:
+	a.	Si el precinto llegó roto, reportar manualmente una incidencia Unauthorized con reportIncident antes de continuar
+		(el contrato no la detecta automáticamente porque no hay campo de precinto en el struct).
+	b.	Si la temperatura está fuera de rango, el contrato crea la incidencia TempViolation automáticamente.
+		En ese caso el hub no debería almacenar el producto hasta que el admin resuelva la incidencia y se tome una decisión sobre la viabilidad del lote.
+	c.	Si conteo de dosis no coincide, reportar manualmente una incidencia Damage o Lost según corresponda, documentando la diferencia en la descripción.
+
+6.	Salida para entrega final:
+	- location — hub de origen de la última milla, por ejemplo "Hub Medellín Norte - Bahía 7, Salida".
+	- checkpointType — valor 2 (Transit).
+	- temperature — lectura compartimento vehículo de última milla después de cargar, igual que en el checkpoint 3.
+	  Este tramo suele ser el más crítico porque los vehículos de última milla (camionetas, motos con nevera) tienen equipos de frío menos potentes
+	  que los camiones de larga distancia.
+	- notes — debe incluir:
+		Placa y tipo de vehículo de última milla
+		Nombre del repartidor
+		Hora de salida del hub
+		Número de precintos nuevos colocados para este tramo
+		Dirección exacta del destinatario
+		Hora estimada de entrega
+		Cantidad de dosis que salen hacia ese destinatario (puede ser una entrega parcial)
+		Temperatura del hub donde estuvo almacenado
+		p.ej.: "Veh: VAN-291 | Repartidor: L. Pérez | Salida: 08:10 | Precinto: #SP-5530 | Dest: Clínica San Rafael, Cr 45 #12-30 | ETA: 09:00 | Dosis: 200/500 | Hub temp: 3.5°C".
+	- actor — wallet carrier de última milla.
+
+	Si el transportador de última milla es diferente al que hizo el trayecto principal, debe estar registrado en el contrato con rol carrier y
+	asignado al envío. Si no está asignado, la transacción revertirá con ActorNotAssignedToShipment.
+
+	Hay un detalle operativo relevante en entregas parciales: si las 500 dosis se distribuyen a varios destinatarios desde el mismo hub,
+	cada salida debería ser un checkpoint separado con las dosis correspondientes en notes. El contrato no tiene un campo nativo para cantidad
+	(toda esa información vive en el campo notes y queda inmutable en la blockchain como evidencia de la distribución).
+
+7.	Entrega al destinatario:
+	- location — nombre institución receptora, por ejemplo "Clínica San Rafael - Almacén Farmacéutico, Cr 45 #12-30, Medellín".
+	- checkpointType — valor 3 (Delivery).
+	- temperature — lectura tomada al abrir el contenedor frente al destinatario, no antes.
+	  Esta lectura es la evidencia definitiva del estado térmico del producto al momento de la entrega.
+	  Si está fuera de rango, el contrato crea la incidencia automáticamente y el destinatario debe decidir si acepta o rechaza el producto
+	  antes de llamar a confirmDelivery.
+	- notes — debe incluir:
+		Nombre y cargo de quien recibe
+		Número de dosis entregadas y verificadas
+		Estado del precinto al momento de apertura
+		Resultado de la inspección visual del producto
+		Número de acta o documento de recepción institucional
+		Temperatura del cuarto frío del destinatario donde se almacenará
+		Cualquier observación sobre el estado del embalaje
+		p.ej.:"Recibe: Dra. M. Castro - Jefe Farmacia | 200 dosis verificadas | Precinto #SP-5530: íntegro | Producto: OK sin daños | Acta: REC-2024-441 | Nevera destino: 4.0°C".
+	- actor — wallet carrier de última milla que hace la entrega física.
+
+	Después de registrar este checkpoint hay dos pasos finales en el contrato que deben ejecutarse en orden:
+	a.	Carrier llama a updateShipmentStatus con estado 3 (OutForDelivery) si no lo hizo antes, para que envío refleje el estado correcto
+		previo a la entrega.
+	b.	Destinatario llama a confirmDelivery.
+		Esta función es la única que puede poner el envío en estado Delivered y registra dateDelivered con el timestamp exacto en el contrato.
+		Sin esta llamada el envío nunca queda cerrado formalmente en la blockchain, aunque todos los checkpoints estén registrados.
+
+Según el contrato, cancelShipment solo se puede cancelar en estos dos estados:
+Created — recién creado, sin que ningún carrier o hub haya llamado updateShipmentStatus
+AtHub — cuando el envío está en un hub (estado 2)
+
+No se puede cancelar cuando:
+InTransit (1)		→ error CannotCancelAfterTransit
+OutForDelivery (3)	→ error CannotCancelAfterTransit
+Delivered (4)		→ error AlreadyClosedShipment
+Returned (5)		→ error AlreadyClosedShipment
+Cancelled (6)		→ error AlreadyClosedShipment
+
+Para poder cancelar tendrías que o bien crear un envío nuevo y cancelarlo antes de cambiar el estado, o desde la cuenta carrier/hub cambiar el estado de vuelta a AtHub (estado 2) y luego cancelar desde la cuenta sender.
+
+============================================================================================================================
+
+Available Accounts
+==================
+admin		0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+sender		0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+carrier		0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+hub			0x90F79bf6EB2c4f870365E785982E1f101E93b906
+recipient	0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65
+inspector	0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc
+sender 1	0x976EA74026E726554dB657fA54763abd0C3a0aa9
+hub 1		0x14dC79964da2C08b23698B3D3cc7Ca32193d9955
+carrier 1	0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f
+recipient 1	0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+
+
+
+Private Keys
+==================
+admin		0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+sender		0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+carrier		0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
+hub			0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
+recipient	0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
+inspector	0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+sender 1	0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e
+hub 1		0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356
+carrier 1	0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
+recipient 1	0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
+
